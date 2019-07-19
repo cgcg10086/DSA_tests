@@ -4,7 +4,7 @@
 Created on Wed Jul  3 17:23:34 2019
 @author: gechen
 
-FRB_pop_v1.py: this code fits for the DM, width and flux distributions of 77 FRBs.
+FRB_population_v1.py: this code fits for the DM, width and flux distributions of 77 FRBs.
 FRB data from FRBCAT.org (Jul. 2, 2019) ('FRB_cat.txt') 
 Fitting the cumulative histogram requires less parameters than fitting the histogram. 
 """
@@ -130,12 +130,12 @@ hist_norm_fluence, cdf_norm_fluence, hist_err_norm_fluence, c_hist_err_norm_flue
 # best guess by eyes 
 width_guess = [1.5, 2.5] # mean, sigma 
 popt_width, pcov_width = curve_fit(gaussian_cdf, x_mid_width, cdf_norm_width, p0=width_guess) 
-perr_width = np.sqrt(np.diag(pcov_width))
+perr_width = np.sqrt(np.diag(pcov_width)) # Calculate the error bars from sqrt(covariance matrix) 
 chisq_width, p_width = stats.chisquare(cdf_norm_width,gaussian_cdf(x_mid_width, popt_width[0], popt_width[1]), ddof=2)
 
 DM_guess = [400, 500] # mean, sigma  
 popt_DM, pcov_DM = curve_fit(gaussian_cdf, x_mid_DM, cdf_norm_DM, p0=DM_guess) 
-perr_DM = np.sqrt(np.diag(pcov_DM))
+perr_DM = np.sqrt(np.diag(pcov_DM)) # Calculate the error bars from sqrt(covariance matrix) 
 chisq_DM, p_DM = stats.chisquare(cdf_norm_DM,gaussian_cdf(x_mid_DM, popt_DM[0], popt_DM[1]), ddof=2)
 
 # fluence and flux are bimodal  
