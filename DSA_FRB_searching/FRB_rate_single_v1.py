@@ -62,7 +62,7 @@ def Compute_dispersion_smearing(DM, frequency_central=1405, channel_width=0.122)
     channel_width: in MHz (bandwidth 250 MHz/ 2048 channels)
     returns dispersion broadening in ms.
     '''
-    return 8.3 *1e6 * DM * channel_width * frequency_central ** (-3) 
+    return 8.3 *1e6 * DM * channel_width * frequency_central ** (-3) # single channel 
     
 
 def Compute_width_obs(w_int, DM):
@@ -143,21 +143,23 @@ def Compute_detection_rate(time_resolution, f=Rate_integrand, w_low=0, w_up=100,
     '''
     Total number of detectable events per day for the instrument. 
     '''
-    return integrate.dblquad(f, 0, np.inf, lambda x: 0, lambda x: np.inf, args=[time_resolution]) 
-    #return integrate.dblquad(f, w_low, w_up, lambda x: 0, lambda x: 2000, args=[time_resolution]) 
+    #return integrate.dblquad(f, 0, np.inf, lambda x: 0, lambda x: np.inf, args=[time_resolution]) 
+    return integrate.dblquad(f, w_low, w_up, lambda x: 0, lambda x: 2000, args=[time_resolution], epsabs=1e-4, epsrel=1e-4) 
 
-
+# test integration speed
+Compute_detection_rate(0.1, Rate_integrand) 
 # -- main -- 
 
 rate = np.array([]) 
 rate_err = np.array([]) 
-time_resolution = np.logspace(-3, 0, num=11) # 1 microsec to 1 millisec
+time_resolution = np.logspace(-3, 0, num=101) # 1 microsec to 1 millisec
 # Use some typical width, fluence, and DM values to test the noise and S/N functions.
 my_w_int = 0.5 # width in ms
 my_F = 1 # fluence 
 my_DM = 100
 S2N = np.array([])
 F0 = np.array([]) 
+
 
 for t in time_resolution:  # in ms 
     print 'time resol=%.3f ms,'%t, 'noise=%.2f Jy ms,'%Compute_flux_noise(my_w_int, t), \
