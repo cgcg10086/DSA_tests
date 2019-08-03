@@ -89,6 +89,18 @@ def plot_data_and_fit(name, x_mid, hist_norm, c_hist_norm, hist_err_norm, c_hist
     fig.savefig(name + '_fit.pdf')  
     #plt.close(fig)
 
+def Compute_w_int(w_eff, DM, frequency_central, channel_width):
+    '''
+    Compute dispersion smearing using the exact DM, i.e. infinite DM samples
+    frequency_central: central frequency in MHz (1280-1530 MHz)
+    channel_width: in MHz 
+    returns dispersion broadening in ms.
+    '''
+    w_DM = 8.3 *1e6 * DM * channel_width * frequency_central ** (-3) # single channel 
+    w_int = np.sqrt(w_eff ** 2 - w_DM ** 2)
+    return w_int 
+
+
 # read in FRB data 
 my_csv = pd.read_csv('FRB_cat.txt')
 print my_csv.columns 

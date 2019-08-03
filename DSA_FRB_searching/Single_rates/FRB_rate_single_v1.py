@@ -6,7 +6,7 @@ Created on Tue Jul 16 11:53:54 2019
 @author: gechen
 
 FRB_rate_single_v1.py: computes the detection rate of a single FRB. 
-Search after de-dispersion trails. 
+Search after de-dispersion. 
 """
 import numpy as np 
 from scipy import stats 
@@ -158,7 +158,7 @@ Compute_detection_rate(1e-3, Rate_integrand)
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
 rate = np.array([]) 
 rate_err = np.array([]) 
-time_resolution = np.logspace(-3, 0, num=20) # 1 microsec to 1 millisec
+time_resolution = np.logspace(-3, 0, num=100) # 1 microsec to 1 millisec
 # Use some typical width, fluence, and DM values to test the noise and S/N functions.
 my_w_int = 0.5 # width in ms
 my_F = 1 # fluence 

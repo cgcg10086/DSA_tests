@@ -7,7 +7,7 @@ Created on Tue Jul 16 11:53:54 2019
 
 FRB_rate_single_v2.py: computes the detection rate of a single FRB. 
 Search after de-dispersion. 
-Added grid plot for rate(time resolution, channel width)
+V2: Adds grid plot for rate(time resolution, channel width)
 """
 import numpy as np 
 from scipy import stats 
@@ -172,13 +172,17 @@ Compute_detection_rate(1e-3, 0.122, Rate_integrand)
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
 rate = np.array([]) 
 rate_err = np.array([]) 
-time_resolution = np.logspace(-3, 0, num=10) # 1 microsec to 1 millisec
+time_resolution_edges = np.logspace(-3, 0, num=21) # 1 microsec to 1 millisec
 #time_resolution = [0.1]
-my_bandwidth = 250 # MHz 
+my_bandwidth = 250.0 # MHz 
 #my_channel_number = np.linspace(1e2, 1e4, num=9) # any rules? Currently 2048 channels. 
-my_channel_number = np.logspace(2, 4, num=9)
-my_channel_width = my_bandwidth / my_channel_number
+my_channel_number_edges = np.array([int(i) for i in np.logspace(4, 2, num=22)])
+my_channel_width_edges = my_bandwidth / my_channel_number_edges
 #my_channel_width = [250.0/2048] # current channel width 
+
+time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
+my_channel_width = 0.5*(my_channel_width_edges[0:-1] + my_channel_width_edges[1:])
+my_channel_number = 0.5*(my_channel_number_edges[0:-1] + my_channel_number_edges[1:])
 
 # Use some typical width, fluence, and DM values to test the noise and S/N functions.
 my_w_int = 0.5 # width in ms
@@ -280,10 +284,10 @@ elif len(my_channel_width)>1 and len(time_resolution)>1:
     ax1.tick_params(labelsize=12) 
     ax1.set_xscale('log') 
     ax1.set_yscale('log')
-    #plt.scatter(time_resolution, my_channel_width, color=rate)
+    #img = ax1.contourf(my_channel_width, time_resolution, zg) # len(X) == M is the number of columns in Z and len(Y) == N is the number of rows in Z
     #img = ax1.imshow(zg, alpha=0.7, interpolation='bicubic',cmap='terrain') 
-    #img = ax1.contourf(time_resolution, my_channel_width, zg) # len(X) == M is the number of columns in Z and len(Y) == N is the number of rows in Z
-    img = ax1.imshow(zg, extent=(np.amin(my_channel_width), np.amax(my_channel_width), np.amin(time_resolution), np.amax(time_resolution))) #norm=LogNorm()
+    #img = ax1.imshow(zg, extent=(np.amin(my_channel_width), np.amax(my_channel_width), np.amin(time_resolution), np.amax(time_resolution)), origin='lower', aspect='auto') #norm=LogNorm()
+    img = ax1.pcolormesh(my_channel_width_edges, time_resolution_edges, zg) #len(x) = row(z)+1 
     char = fig1.colorbar(img, ax=ax1) 
     char.set_label('Rate [%]', fontsize = 12) # colorbar label.
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
