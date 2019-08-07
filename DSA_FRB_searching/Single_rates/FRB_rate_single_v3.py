@@ -198,7 +198,7 @@ def Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max, S2N_m
         F0 = flux_noise * S2N_min * w_eff 
     
     # for debug
-    with open('outputs_txt/Integration_trac_v3.txt', 'a') as f: 
+    with open('../../outputs_txt/Integration_trac_v3.txt', 'a') as f: 
         print >>f, '#### Discrete DM sampling ######'
         print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
         print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
@@ -266,7 +266,7 @@ for t in time_resolution:  # in ms
         rate = np.append(rate, rate_element[0]) 
         rate_err = np.append(rate_err, rate_element[1]) 
         
-        with open('outputs_txt/rate_results_v3.txt', 'a') as f: 
+        with open('../../outputs_txt/rate_results_v3.txt', 'a') as f: 
             print >>f, '#### Rate with Discrete DM sampling ######'
             print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
             print >>f, 'Time resol=%.3f ms,'%t, 'channel width=%.4f MHz,'%n_ch, 'noise=%.2f Jy ms,'%noise_element, \
