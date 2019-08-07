@@ -1,20 +1,18 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Tue Jul 16 11:53:54 2019
+Created on Mon Jul 29 12:42:59 2019
 
 @author: gechen
-
-FRB_rate_single_v2.py: computes the detection rate of a single FRB. 
-Search after de-dispersion. 
-V2: Adds grid plot for rate(time resolution, channel width)
+FRB_rate_single_v3.py: computes the detection rate of a single FRB. 
+V2: adds grid plot for rate(time resolution, channel width)
+V3: adds dispersion smearing due to the DM trail step size. 
 """
 import numpy as np 
 from scipy import stats 
 from scipy import integrate
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm 
-import time
+import time 
 
 
 np.set_printoptions(threshold=np.nan) #print full array 
@@ -82,17 +80,60 @@ def Compute_w_DM(DM, channel_width, frequency_central=1405):
     return w_DM 
 
 
-def Compute_w_eff(w_int, DM, channel_width):
+def Compute_DM_grid(channel_number, time_resolution, DM_min, DM_max, t_i = 0.064, epsilon = 1.25, frequency_central_GHz=1.405):
+    '''
+    Compute the DM values to use in the de-dispersion trail.
+    time_resolution: in ms 
+    t_i: typical intrinsic width (ms). Use a small number to get small enough spacing. 
+    frequency_central=1405 MHz.
+    epsilon: tolerence. 
+    '''
+    DM = DM_min 
+    DM_grid = np.array([DM_min]) 
+    t_samp = time_resolution  
+    alpha = 1./(16 + channel_number ** 2) 
+    beta = (t_i ** 2 + t_samp ** 2) * 1e6
+    B = 250.0 / channel_number # MHz, channel bandwidth 
+    
+    while DM <= DM_max:
+        DM = channel_number ** 2 * alpha * DM + np.sqrt(16 * alpha * (epsilon ** 2 - channel_number ** 2 * alpha) * DM ** 2 + 16 * alpha * beta * (epsilon ** 2 - 1) * (frequency_central_GHz ** 3 / (8.3 * B)) ** 2) # Lina Levin Thesis Eqn. 2.5 
+        DM_grid = np.append(DM_grid, DM)
+        
+    return DM_grid
+    
+    
+
+def Compute_w_delta_DM(DM_real, channel_number, time_resolution, DM_min, DM_max, frequency_central=1405): 
+    '''
+    Compute the dispersion smearing due to the finite DM trail values.
+    frequency_central in MHz 
+    Returns an array. 
+    '''
+    DM_grid = Compute_DM_grid(channel_number, time_resolution, DM_min, DM_max)
+    B = 250.0 / channel_number # channel bandwidth in MHz 
+    delta_DM = min(abs(DM_real - DM_grid))
+    w_delta_DM = 1e6 * 8.3 * channel_number * B * delta_DM / (4 * frequency_central ** 3) # in ms 
+    return w_delta_DM
+    
+
+def Compute_w_eff(w_int, DM, channel_width, time_resolution, DM_min, DM_max, include_w_delta_DM = False):
     '''
     Effective width: width after de-dispersion. 
-    All in ms. 
+    All width in ms. 
     '''
+    channel_number = 250.0 / channel_width
     w_DM = Compute_w_DM(DM, channel_width) 
-    w_eff = np.sqrt(w_int ** 2 + w_DM ** 2)
+    
+    if include_w_delta_DM == True: 
+        w_delta_DM = Compute_w_delta_DM(DM, channel_number, time_resolution, DM_min, DM_max) 
+    else: 
+        w_delta_DM = 0 
+    
+    w_eff = np.sqrt(w_int ** 2 + time_resolution ** 2 + w_DM ** 2 + w_delta_DM ** 2) 
     return w_eff 
     
 
-def Compute_flux_noise(w_int, DM, time_resolution, channel_width, T_sys = 35, bandwidth = 250):
+def Compute_flux_noise(w_int, DM, time_resolution, channel_width, DM_min, DM_max, T_sys = 35, bandwidth = 250):
     '''
     Compute the flux noise level of one reading (width < time resolution) in Jy.
     # w_int: in ms 
@@ -100,7 +141,7 @@ def Compute_flux_noise(w_int, DM, time_resolution, channel_width, T_sys = 35, ba
     # T_sys: in Kelvin
     # bandwidth: in MHz
     '''
-    w_eff = Compute_w_eff(w_int, DM, channel_width) 
+    w_eff = Compute_w_eff(w_int, DM, channel_width, time_resolution, DM_min, DM_max) 
     Kb = 1381 # in m^2*Jy/Kelvin 
     efficiency = 0.65 
     n = 85 # what is this? 
@@ -116,13 +157,13 @@ def Compute_flux_noise(w_int, DM, time_resolution, channel_width, T_sys = 35, ba
     return flux_noise # single sample noise = 0.40234375 Jy, for the default values 
 
 
-def Compute_S2N(fluence, DM, w_int, time_resolution, channel_width):
+def Compute_S2N(fluence, DM, w_int, time_resolution, channel_width, DM_min, DM_max):
     '''
     Compute the observed mean flux from the fluence, and the S/N. 
     fluence: Jin y ms
     w_int, time_resolution: in ms. 
     '''
-    w_eff = Compute_w_eff(w_int, DM, channel_width) 
+    w_eff = Compute_w_eff(w_int, DM, channel_width, time_resolution, DM_min, DM_max) 
     if w_eff <= time_resolution:
         t_burst = time_resolution 
     else:
@@ -130,62 +171,56 @@ def Compute_S2N(fluence, DM, w_int, time_resolution, channel_width):
         #t_burst = time_resolution * (int(w_obs / time_resolution) + 1) # rescale the width to integer number * time resolution.   
     
     flux_obs = fluence / t_burst
-    noise = Compute_flux_noise(w_int, DM, time_resolution, channel_width) 
+    noise = Compute_flux_noise(w_int, DM, time_resolution, channel_width, DM_min, DM_max) 
         
     return flux_obs / noise 
 
 
-def Compute_F0(w_int, DM, time_resolution, channel_width, S2N_min=8):
+def Compute_F0(w_int, DM, time_resolution, channel_width, DM_min, DM_max, S2N_min=8):
     '''
     compute fluence threshold for a given time resolution and width.
     '''
-    w_eff = Compute_w_eff(w_int, DM, channel_width) 
-    flux_noise = Compute_flux_noise(w_int, DM, time_resolution, channel_width) 
+    w_eff = Compute_w_eff(w_int, DM, channel_width, time_resolution, DM_min, DM_max) 
+    flux_noise = Compute_flux_noise(w_int, DM, time_resolution, channel_width, DM_min, DM_max) 
     
     if w_eff <= time_resolution: 
         F0 = flux_noise * S2N_min * time_resolution 
     else: 
         F0 = flux_noise * S2N_min * w_eff  
-    
-    with open('outputs_txt/Integration_v2.txt', 'a') as f: 
-        print >>f, '#### Discrete DM sampling ######'
-        print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
-        print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
 
     return F0  
 
 
-def Rate_integrand(w_int, DM, time_resolution, channel_width):
+def Rate_integrand(DM, w_int, time_resolution, channel_width, DM_min, DM_max):
     '''
     Integrate this function to get the detection rate.
     '''    
-    F_0 = Compute_F0(w_int, DM, time_resolution, channel_width) # fluence threshold for a given width     
+    F_0 = Compute_F0(w_int, DM, time_resolution, channel_width, DM_min, DM_max) # fluence threshold for a given width     
     event_rate_above_F_0 = 1 - Fluence_cdf(F_0) # N[F>F0(w, DM)]  
     
     return event_rate_above_F_0 * Width_intrinsic_pdf(w_int) * DM_pdf(DM) 
 
+
     
-def Compute_detection_rate(time_resolution, channel_width, f=Rate_integrand): 
+def Compute_detection_rate(time_resolution, channel_width, DM_min, DM_max,f=Rate_integrand): 
     '''
     Total number of detectable events per day for the instrument. 
-    Note that the order of arguments are counter-intuitive. 
     '''
-    return integrate.dblquad(f, 0, np.inf, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_width], epsabs=1e-4, epsrel=1e-4) 
+    return integrate.dblquad(f, DM_min, DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_width, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
     
 
 # test integration speed
-Compute_detection_rate(1e-3, 0.122, Rate_integrand) 
+Compute_detection_rate(1e-3, 0.122, 0.0, np.inf, Rate_integrand) 
 # -- main -- 
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
-rate = np.array([]) 
-rate_err = np.array([]) 
-time_resolution_edges = np.logspace(-3, 0, num=2) # 1 microsec to 1 millisec
-#time_resolution = [0.1]
 my_bandwidth = 250.0 # MHz 
-#my_channel_number = np.linspace(1e2, 1e4, num=9) # any rules? Currently 2048 channels. 
-my_channel_number_edges = np.array([int(i) for i in np.logspace(4, 2, num=2)])
+my_DM_min = 0.0 
+my_DM_max = 5000
+
+
+time_resolution_edges = np.logspace(-3.0, 0.0, num=2) # 1 microsec to 1 millisec
+my_channel_number_edges = np.logspace(11, 6, num=3, base=2.0) # N <= 2048
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
-#my_channel_width = [250.0/2048] # current channel width 
 
 time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
 my_channel_width = 0.5*(my_channel_width_edges[0:-1] + my_channel_width_edges[1:])
@@ -195,22 +230,32 @@ my_channel_number = 0.5*(my_channel_number_edges[0:-1] + my_channel_number_edges
 my_w_int = 0.5 # width in ms
 my_F = 1 # fluence 
 my_DM = 300
+
+rate = np.array([]) 
+rate_err = np.array([]) 
 S2N = np.array([])
 F0 = np.array([]) 
 
 
 for t in time_resolution:  # in ms 
     for w_ch in my_channel_width: # in MHz 
-        with open('outputs_txt/rate_outputs.txt', 'a') as f: 
-            print >>f, '#### Rate with continuous DM sampling ######'
-            print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
-            print >>f, 'Time resol=%.3f ms,'%t, 'channel width=%.4f MHz,'%w_ch, 'noise=%.2f Jy ms,'%Compute_flux_noise(my_w_int, my_DM, t, w_ch), \
-            'S/N=%.1f,'%Compute_S2N(my_F, my_DM, my_w_int, t, w_ch), \
-            'rate=', Compute_detection_rate(t, w_ch, Rate_integrand) # (integral result, error)
-        S2N = np.append(S2N, Compute_S2N(my_F, my_DM, my_w_int, t, w_ch))
-        F0 = np.append(F0, Compute_F0(my_w_int, my_DM, t, w_ch))
-        rate = np.append(rate, Compute_detection_rate(t, w_ch, Rate_integrand)[0]) 
-        rate_err = np.append(rate_err, Compute_detection_rate(t, w_ch, Rate_integrand)[1]) 
+        noise_element = Compute_flux_noise(my_w_int, my_DM, t, w_ch, my_DM_min, my_DM_max) 
+        S2N_element = Compute_S2N(my_F, my_DM, my_w_int, t, w_ch, my_DM_min, my_DM_max)
+        F0_element = Compute_F0(my_w_int, my_DM, t, w_ch, my_DM_min, my_DM_max)
+        rate_element = Compute_detection_rate(t, w_ch, my_DM_min, my_DM_max, Rate_integrand)
+        with open('rate_outputs.txt', 'a') as f: 
+            print >>f, '#### Rate with Discrete DM sampling ######'
+            print >>f, time.strftime("%Y-%m-%d %H:%M") # print date and time 
+            print >>f, 'Time resol=%.3f ms,'%t, 'channel width=%.4f MHz,'%w_ch, 'noise=%.2f Jy ms,'%noise_element, \
+            'S/N=%.1f,'%S2N_element, \
+            'rate=', rate_element # (integral result, error)
+        print 'Time resol=%.3f ms,'%t, 'channel width=%.4f MHz,'%w_ch, 'noise=%.2f Jy ms,'%noise_element, \
+            'S/N=%.1f,'%S2N_element, \
+            'rate=', rate_element # (integral result, error)
+        S2N = np.append(S2N, S2N_element)
+        F0 = np.append(F0, F0_element)
+        rate = np.append(rate, rate_element[0]) 
+        rate_err = np.append(rate_err, rate_element[1]) 
         
 # only changes time resolution
 if len(my_channel_width)==1 and len(time_resolution)>1:
@@ -245,7 +290,7 @@ if len(my_channel_width)==1 and len(time_resolution)>1:
     ax1.set_xlabel('Time Resolution [ms]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('Fluence Threshold vs Time Resolution \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    #fig1.savefig('F0_vs_time_resol.pdf') 
+    #fig1.savefig('F0_vs_time_resol_discrete_DM_sample.pdf') 
     #plt.close() 
 
 # only changes channel width
@@ -259,7 +304,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
     ax1.set_ylabel(r'Detection rate [%]', fontsize = 12) 
     ax1.set_title('Rate vs Channel width', fontsize = 12) 
-    fig1.savefig('Rate_vs_channel_width.pdf') 
+    fig1.savefig('Rate_vs_channel_width_discrete_DM_sample.pdf') 
     #plt.close() 
     
     fig1, ax1 = plt.subplots() 
@@ -270,7 +315,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel_width [MHz]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('F_0 vs channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('F0_vs_channel_width.pdf') 
+    fig1.savefig('F0_vs_channel_width_discrete_DM_sample.pdf') 
     #plt.close() 
         
     fig1, ax1 = plt.subplots() 
@@ -281,7 +326,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel width [MHz]', fontsize = 12)
     ax1.set_ylabel('S/N', fontsize = 12)
     ax1.set_title('S/N vs Channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('S2N_vs_channel_width.pdf') 
+    fig1.savefig('S2N_vs_channel_width_discrete_DM_sample.pdf') 
 
 # grid plot 
 elif len(my_channel_width)>1 and len(time_resolution)>1:
@@ -303,37 +348,41 @@ elif len(my_channel_width)>1 and len(time_resolution)>1:
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
     ax1.set_ylabel(r'Time resolution [ms]', fontsize = 12) 
     ax1.set_title('Rate vs. (channel width and time resolution)', fontsize = 14)   
-    fig1.savefig('Rate_grid.pdf')  
+    #fig1.savefig('Rate_grid_discrete_DM_sample.pdf')  
     
 else: 
-    print 'Check channel width and time resolution arrays.'
+    print 'rate=', rate
 
 
 print 'all time should be in ms.'
 
 
-'''
-my_w_obs = compute_width_obs(my_DM, my_w_int, my_frequency, my_delta_frequency)
-my_flux_obs = compute_flux_obs(my_flux_int, my_w_obs, my_time_resolution) 
-my_S2N = S2N(my_flux_obs, my_noise_1, my_w_obs, my_time_resolution) 
-my_rate = rate(my_flux_int, my_DM, my_w_int, my_S2N, my_S2N_min, my_events_rate)
+# test the effect of w_delta_DM 
+test_channel_num = 1000
+test_w_int = 0.5 
+test_time_resolution = 1e-2 
+DM_grid = Compute_DM_grid(test_channel_num, test_time_resolution, 0, 3e3) 
+DM_real = np.linspace(0, 3e3,num=200) 
+w_delta_DM = np.array([]) 
+w_DM_and_t_samp = np.array([])
+w_eff = np.array([]) 
+for DM in DM_real:
+    w_delta_DM = np.append(w_delta_DM, Compute_w_delta_DM(DM, test_channel_num, test_time_resolution, 0, 3e3)) 
+    w_DM_and_t_samp = np.append(w_DM_and_t_samp, Compute_w_eff(my_w_int, DM, test_channel_num, test_time_resolution, 0, 3e3, include_w_delta_DM = False))
+    w_eff = np.append(w_eff, Compute_w_eff(my_w_int, DM, test_channel_num, test_time_resolution, 0, 3e3, include_w_delta_DM = True))
 
-def Dedisperse(w_obs, DM):
-    w_DM = min(w_obs, Compute_dispersion_smearing(DM))
-    w_dedispersed = np.sqrt(w_obs ** 2 - w_DM ** 2) 
-    return w_dedispersed 
+w_DM = Compute_w_DM(DM_real, 250.0/test_channel_num) # dispersion smearing without adding sampling time 
 
+fig1, ax1 = plt.subplots() 
+ax1.tick_params(labelsize=12) 
+ax1.plot(DM_real, w_delta_DM, 'c:', label='w_delta_DM along') 
+ax1.plot(DM_real, w_DM, 'b-.', label='w_DM along')
+ax1.plot(DM_real, w_DM_and_t_samp, 'k--', label='w_eff without w_delta_DM')
+ax1.plot(DM_real, w_eff, 'r', label='w_eff total')
+ax1.legend()
+ax1.set_xlabel('DM')
+ax1.set_ylabel('width [ms]') 
+ax1.set_title(r'Dispersion smearing due to DM, $\Delta$DM and $t_{samp}$')
+#fig1.savefig('w_delta_DM_test_with_t_samp.pdf')
 
-def Compute_w_DM_stepsize(DM, DM_stepsize):
-    return 0 
-
-def Compute_w_intrinsic(w_obs, DM, DM_stepsize):
-    w_DM = Compute_dispersion_smearing(DM) 
-    w_DM_stepsize = 0
-    w_int = np.sqrt(w_obs ** 2 - w_DM ** 2 - w_DM_stepsize ** 2) 
-    return w_int 
-# do not need to interpolate here. Already a grid. 
-dg=interpolate.griddata((coordinates[:, 0], coordinates[:, 1]), y, (xg,yg), method='nearest');
-    
-'''
 
