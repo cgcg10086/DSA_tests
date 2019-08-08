@@ -14,11 +14,11 @@ from scipy import integrate
 import matplotlib.pyplot as plt
 
 
-def DM_pdf(DM, mu=544, sigma=406):
+def DM_pdf(DM, mu=563, sigma=442):
     '''Gaussian distributions from fitting results (FRB_population_v1.py)'''
     return stats.norm.pdf(DM, mu, sigma) # gaussian 
 
-def Width_intrinsic_pdf(w_int, mu=1.85, sigma=2.58):
+def Width_intrinsic_pdf(w_int, mu=1.85, sigma=3.03):
     '''
     Gaussian distributions from fitting results (FRB_population_v1.py)
     in ms 

@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Aug  5 13:58:51 2019
-
+FRB_rate_single_v3.py: computes the detection rate of a single FRB. 
 @author: gechen
 
-FRB_rate_single_v3.py: computes the detection rate of a single FRB. 
-V2: adds grid plot for rate(time resolution, channel width)
+V1: rate vs. time resolution.
+V2: adds grid plot for rate(time resolution, channel width).
 V3: adds dispersion smearing due to the DM trail step size. 
 """
 import numpy as np 
@@ -28,11 +28,11 @@ plt.rc('xtick', labelsize=14)
 plt.rc('ytick', labelsize=14) 
 
 
-def DM_pdf(DM, mu=544, sigma=406):
+def DM_pdf(DM, mu=563, sigma=442):
     '''Gaussian distributions from fitting results (FRB_population_v1.py)'''
     return stats.norm.pdf(DM, mu, sigma) # gaussian 
 
-def Width_intrinsic_pdf(w_int, mu=1.85, sigma=2.58):
+def Width_intrinsic_pdf(w_int, mu=1.85, sigma=3.03):
     '''
     Gaussian distributions from fitting results (FRB_population_v1.py)
     in ms 

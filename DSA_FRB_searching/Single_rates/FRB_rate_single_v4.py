@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Aug  6 22:46:53 2019
-
-@author: gechen
-
 FRB_rate_single_v4.py: computes the detection rate of a single FRB. 
+@author: gechen
 
 V1: rate vs. time resolution 
 V2: adds grid plot for rate(time resolution, channel width)
@@ -31,11 +29,11 @@ plt.rc('xtick', labelsize=14)
 plt.rc('ytick', labelsize=14) 
 
 
-def DM_pdf(DM, mu=544, sigma=406):
+def DM_pdf(DM, mu=563, sigma=442):
     '''Gaussian distributions from fitting results (FRB_population_v1.py)'''
     return stats.norm.pdf(DM, mu, sigma) # gaussian 
 
-def Width_intrinsic_pdf(w_int, mu=1.85, sigma=2.58):
+def Width_intrinsic_pdf(w_int, mu=1.85, sigma=3.03):
     '''
     Gaussian distributions from fitting results (FRB_population_v1.py)
     in ms 
@@ -229,7 +227,7 @@ def Compute_detection_rate(time_resolution, channel_number, DM_min, DM_max,f=Rat
     Note that the order of arguments are counter-intuitive: (z, y, x) 
     '''
     #return integrate.tplquad(f, -90.0, 90.0, lambda y: DM_min, lambda y: DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
-    return integrate.tplquad(f, -90.0, 90.0, lambda x: DM_min, lambda x: DM_max, lambda x,y: 0, lambda x,y: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
+    return integrate.tplquad(f, -5.0, 5.0, lambda x: DM_min, lambda x: DM_max, lambda x,y: 0, lambda x,y: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
 
 
 
@@ -320,7 +318,7 @@ if len(my_channel_width)==1 and len(time_resolution)>1:
     ax1.set_xlabel('Time Resolution [ms]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('Fluence Threshold vs Time Resolution \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    #fig1.savefig('F0_vs_time_resol_discrete_DM_sample.pdf') 
+    #fig1.savefig('F0_vs_time_resol_beam_shape_single.pdf') 
     #plt.close() 
 
 # only changes channel width
@@ -334,7 +332,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
     ax1.set_ylabel(r'Detection rate [%]', fontsize = 12) 
     ax1.set_title('Rate vs Channel width', fontsize = 12) 
-    fig1.savefig('Rate_vs_channel_width_discrete_DM_sample.pdf') 
+    fig1.savefig('Rate_vs_channel_width_beam_shape_single.pdf') 
     #plt.close() 
     
     fig1, ax1 = plt.subplots() 
@@ -345,7 +343,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel_width [MHz]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('F_0 vs channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('F0_vs_channel_width_discrete_DM_sample.pdf') 
+    fig1.savefig('F0_vs_channel_width_beam_shape_single.pdf') 
     #plt.close() 
         
     fig1, ax1 = plt.subplots() 
@@ -356,7 +354,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel width [MHz]', fontsize = 12)
     ax1.set_ylabel('S/N', fontsize = 12)
     ax1.set_title('S/N vs Channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('S2N_vs_channel_width_discrete_DM_sample.pdf') 
+    fig1.savefig('S2N_vs_channel_width_beam_shape_single.pdf') 
 
 # grid plot 
 elif len(my_channel_width)>1 and len(time_resolution)>1:
@@ -378,7 +376,7 @@ elif len(my_channel_width)>1 and len(time_resolution)>1:
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
     ax1.set_ylabel(r'Time resolution [ms]', fontsize = 12) 
     ax1.set_title('Rate vs. (channel width and time resolution)', fontsize = 14)   
-    fig1.savefig('Rate_grid_discrete_DM_sample.pdf')  
+    fig1.savefig('Rate_grid_beam_shape_single.pdf')  
     
 else: 
     print 'rate=', rate
