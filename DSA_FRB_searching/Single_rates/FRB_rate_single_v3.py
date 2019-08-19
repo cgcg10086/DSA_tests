@@ -198,7 +198,7 @@ def Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max, S2N_m
         F0 = flux_noise * S2N_min * w_eff 
     
     # for debug
-    with open('../../outputs_txt/Integration_trac_v3.txt', 'a') as f: 
+    with open('../../outputs_txt/Integration_track_v3.txt', 'a') as f: 
         print >>f, '#### Discrete DM sampling ######'
         print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
         print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
@@ -235,8 +235,8 @@ my_DM_max = 5000.0
 #Compute_detection_rate(1e-3, 2048, my_DM_min, my_DM_max, Rate_integrand) 
 
 
-time_resolution_edges = np.logspace(-3.0, 0.0, num=2) # 1 microsec to 1 millisec
-my_channel_number_edges = np.logspace(11, 6, num=2, base=2.0) # N <= 2048
+time_resolution_edges = np.logspace(-3.0, 0.0, num=25) # 1 microsec to 1 millisec
+my_channel_number_edges = np.logspace(11, 6, num=26, base=2.0) # N <= 2048
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
 
 time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
@@ -400,7 +400,7 @@ fig1, ax1 = plt.subplots()
 fig1.set_size_inches(8., 6.) 
 ax1.tick_params(labelsize=12) 
 ax1.plot(DM_real, w_delta_DM, 'c-', label='w_delta_DM along') 
-ax1.plot(DM_real, w_DM, 'b:', label='w_DM along')
+ax1.plot(DM_real, w_DM, 'b:', label='w_DM along') 
 ax1.plot(DM_real, w_DM_and_t_samp, 'k--', label='w_eff without w_delta_DM')
 ax1.plot(DM_real, w_eff, 'r', label='w_eff total')
 ax1.legend()

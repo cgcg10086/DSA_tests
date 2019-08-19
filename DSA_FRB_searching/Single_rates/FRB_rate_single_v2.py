@@ -147,7 +147,7 @@ def Compute_F0(w_int, DM, time_resolution, channel_width, S2N_min=8):
     else: 
         F0 = flux_noise * S2N_min * w_eff  
     
-    with open('outputs_txt/Integration_v2.txt', 'a') as f: 
+    with open('../../outputs_txt/Integration_track_v2.txt', 'a') as f: 
         print >>f, '#### Discrete DM sampling ######'
         print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
         print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
@@ -179,11 +179,11 @@ Compute_detection_rate(1e-3, 0.122, Rate_integrand)
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
 rate = np.array([]) 
 rate_err = np.array([]) 
-time_resolution_edges = np.logspace(-3, 0, num=2) # 1 microsec to 1 millisec
+time_resolution_edges = np.logspace(-3, 0, num=25) # 1 microsec to 1 millisec
 #time_resolution = [0.1]
 my_bandwidth = 250.0 # MHz 
 #my_channel_number = np.linspace(1e2, 1e4, num=9) # any rules? Currently 2048 channels. 
-my_channel_number_edges = np.array([int(i) for i in np.logspace(4, 2, num=2)])
+my_channel_number_edges = np.array([int(i) for i in np.logspace(4, 2, num=26)])
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
 #my_channel_width = [250.0/2048] # current channel width 
 
@@ -201,7 +201,7 @@ F0 = np.array([])
 
 for t in time_resolution:  # in ms 
     for w_ch in my_channel_width: # in MHz 
-        with open('outputs_txt/rate_outputs.txt', 'a') as f: 
+        with open('../../outputs_txt/rate_outputs_v2.txt', 'a') as f: 
             print >>f, '#### Rate with continuous DM sampling ######'
             print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
             print >>f, 'Time resol=%.3f ms,'%t, 'channel width=%.4f MHz,'%w_ch, 'noise=%.2f Jy ms,'%Compute_flux_noise(my_w_int, my_DM, t, w_ch), \

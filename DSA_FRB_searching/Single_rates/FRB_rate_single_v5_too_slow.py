@@ -1,14 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug  6 22:46:53 2019
-FRB_rate_single_v4.py: computes the detection rate of a single FRB. 
+Created on Fri Aug 16 12:18:16 2019
+FRB_rate_single_v5.py: computes the detection rate of a single FRB. 
 @author: gechen
 
 V1: rate vs. time resolution 
 V2: adds grid plot for rate(time resolution, channel width)
 V3: adds dispersion smearing due to the DM trail step size. 
-v4: adds sky power response distribution into the rate. 
+v4: adds single dish sky power response distribution into the rate integral. 
+v5: adds beam forming sky distribution into the rate integral.
 """
 import numpy as np 
 from scipy import stats 
@@ -71,12 +72,27 @@ def Fluence_cdf(F_0, F_b=15, F_low=0.5, F_up = 1e5, alpha = -1.18, beta = -2.2):
     return norm_scale * fluence_cdf 
 
 
-def Beam_shape(theta, mu=0, sigma=1.65):
+def Beam_forming_shape(theta, sky_angle=5.0, beam_center_space=0.04, sigma_prime=0.012, mu_envelop=0.0, sigma_envelop=1.65):
     '''
-    Single antenna power response in 1D.
+    Beam forming in 1D. 
     Normalized to peak at 100% at the zenith. 
+    Approximate each prime beams as narrow Gaussians (mu_prime is a freee parameter, sigma_prime=0.012)
+    Approximate the envelop using the single dish response (mu_envelop=0, sigma_envelop=1.65)
+    
+    sky_angle: sky region to look at in the integration. 
+    beam_center_space: space between adjacent prime beams. any rule? 
     '''
-    return stats.norm.pdf(theta, mu, sigma) / stats.norm.pdf(mu, mu, sigma)
+    beam_num = 2 * sky_angle / beam_center_space # number of prime beams to form in the resion of interest. 
+    mu_prime_repeat = np.linspace(-1*sky_angle, sky_angle, num=int(beam_num)+1) 
+    mu_prime = mu_prime_repeat[np.argmin(abs(theta-mu_prime_repeat))] 
+    p_prime_repeat = stats.norm.pdf(theta, mu_prime, sigma_prime) / stats.norm.pdf(mu_prime, mu_prime, sigma_prime) 
+    
+    #theta_prime = np.linspace(-0.02, 0.02, num=11, endpoint=True) #10+1
+    #p_prime = stats.norm.pdf(theta_prime, 0, sigma_prime) / stats.norm.pdf(0, 0, sigma_prime)
+    #p_prime_repeat = np.tile(p_prime, int(beam_num)) 
+    #theta_prime_repeat = np.linspace(-5, 5, num=2501, endpoint=True) # 10*250+1
+    p_envelop = stats.norm.pdf(theta, mu_envelop, sigma_envelop) / stats.norm.pdf(mu_envelop, mu_envelop, sigma_envelop) # envelop 
+    return p_prime_repeat * p_envelop 
     
 
 def Compute_w_DM(DM, channel_number, frequency_central=1405):
@@ -198,12 +214,6 @@ def Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max, S2N_m
         F0 = flux_noise * S2N_min * time_resolution 
     else: 
         F0 = flux_noise * S2N_min * w_eff 
-    
-    # for debug
-    with open('../../outputs_txt/Integration_track_'+version+'.txt', 'a') as f: 
-        print >>f, '#### Discrete DM sampling ######'
-        print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
-        print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
 
     return F0  
 
@@ -215,7 +225,13 @@ def Rate_integrand(w_int, DM, theta, time_resolution, channel_number, DM_min, DM
     F_0 = Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max) # fluence threshold for a given width     
     event_rate_above_F_0 = 1 - Fluence_cdf(F_0) # N[F>F0(w, DM)]  
     
-    return event_rate_above_F_0 * Width_intrinsic_pdf(w_int) * DM_pdf(DM) * Beam_shape(theta) 
+    # for debug or record
+    with open('../../outputs_txt/Integration_track_'+version+'.txt', 'a') as f: 
+        print >>f, '#### Discrete DM sampling ######'
+        print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
+        print >>f, 'w_int=',w_int, 'DM=',DM, 'theta=',theta, 'F0=', F0 
+    
+    return event_rate_above_F_0 * Width_intrinsic_pdf(w_int) * DM_pdf(DM) * Beam_forming_shape(theta) 
 
 
 
@@ -225,24 +241,26 @@ def Compute_detection_rate(time_resolution, channel_number, DM_min, DM_max,f=Rat
     Total number of detectable events per day for the instrument. 
     Return the triple integral of func(z, y, x) from x = a..b, y = gfun(x)..hfun(x), and z = qfun(x,y)..rfun(x,y).
     Note that the order of arguments are counter-intuitive: (z, y, x) 
+    width from 0 to 2000 ms.
     '''
     #return integrate.tplquad(f, -90.0, 90.0, lambda y: DM_min, lambda y: DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
-    return integrate.tplquad(f, -5.0, 5.0, lambda x: DM_min, lambda x: DM_max, lambda x,y: 0, lambda x,y: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
+    return integrate.tplquad(f, -5.0, 5.0, lambda x: DM_min, lambda x: DM_max, lambda x,y: 0, lambda x,y: 2000, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-2, epsrel=1e-2) 
 
 
 
 # -- main -- 
-version = 'v4' # code version 
+version = 'v5_slow' # code version 
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
 my_bandwidth = 250.0 # MHz 
 my_DM_min = 0.0 
 my_DM_max = 5000.0
+
 # test integration speed
 #Compute_detection_rate(1e-3, 2048, my_DM_min, my_DM_max, Rate_integrand) 
 
 
-time_resolution_edges = np.logspace(-3.0, 0.0, num=21) # 1 microsec to 1 millisec
-my_channel_number_edges = np.logspace(11, 6, num=22, base=2.0) # N <= 2048
+time_resolution_edges = np.logspace(-3.0, 0.0, num=2) # 1 microsec to 1 millisec
+my_channel_number_edges = np.logspace(11, 6, num=2, base=2.0) # N <= 2048
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
 
 time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
@@ -415,4 +433,16 @@ ax1.set_ylabel('width [ms]')
 ax1.set_title(r'Dispersion smearing due to DM, $\Delta$DM and $t_{samp}$')
 #fig1.savefig('w_delta_DM_test_with_t_samp.pdf')
 
+# test beam forming result
+theta=np.linspace(-5,5,3001) 
+p = [Beam_forming_shape(item) for item in theta] 
+
+fig3, ax3 = plt.subplots() 
+fig3.set_size_inches(8., 6.) 
+ax3.tick_params(labelsize=12) 
+ax3.plot(theta, p)
+ax3.set_xlabel('Angle from the Zenith (degree)')
+ax3.set_ylabel('Power Response') 
+ax3.set_title('Beam forming approximation') 
+fig3.savefig('Beam_forming_approx.pdf')
 

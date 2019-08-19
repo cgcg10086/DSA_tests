@@ -1,14 +1,17 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Tue Aug  6 22:46:53 2019
-FRB_rate_single_v4.py: computes the detection rate of a single FRB. 
+Created on Fri Aug 16 12:18:16 2019
+FRB_rate_single_v5.py: computes the detection rate of a single FRB in this hemisphere. 
 @author: gechen
 
 V1: rate vs. time resolution 
 V2: adds grid plot for rate(time resolution, channel width)
 V3: adds dispersion smearing due to the DM trail step size. 
-v4: adds sky power response distribution into the rate. 
+v4: adds single dish sky power response distribution into the rate integral. 
+v5: adds beam forming sky distribution into the rate integral.
+
+Seperate the power resoponse integral and the rest, which is space-independent. 
 """
 import numpy as np 
 from scipy import stats 
@@ -71,12 +74,27 @@ def Fluence_cdf(F_0, F_b=15, F_low=0.5, F_up = 1e5, alpha = -1.18, beta = -2.2):
     return norm_scale * fluence_cdf 
 
 
-def Beam_shape(theta, mu=0, sigma=1.65):
+def Beam_forming_shape(theta, sky_angle, beam_center_space=0.04, sigma_prime=0.012, mu_envelop=0.0, sigma_envelop=1.65):
     '''
-    Single antenna power response in 1D.
+    Beam forming in 1D. 
     Normalized to peak at 100% at the zenith. 
+    Approximate each prime beams as narrow Gaussians (mu_prime is a freee parameter, sigma_prime=0.012)
+    Approximate the envelop using the single dish response (mu_envelop=0, sigma_envelop=1.65)
+    
+    sky_angle: sky region radius from the zenith. 
+    beam_center_space: space between adjacent prime beams. Any rule? 
+    beam_center_space=0.04, sigma_prime=0.012, mu_envelop=0.0, sigma_envelop=1.65, all in degrees
     '''
-    return stats.norm.pdf(theta, mu, sigma) / stats.norm.pdf(mu, mu, sigma)
+    beam_num = 2 * sky_angle / beam_center_space # number of prime beams to form in the resion of interest. 
+    mu_prime_repeat = np.linspace(-1*sky_angle, sky_angle, num=int(beam_num)+1) 
+    mu_prime = mu_prime_repeat[np.argmin(abs(theta-mu_prime_repeat))] 
+    p_prime_repeat = stats.norm.pdf(theta, mu_prime, sigma_prime) / stats.norm.pdf(mu_prime, mu_prime, sigma_prime) 
+    
+    p_envelop = stats.norm.pdf(theta, mu_envelop, sigma_envelop) / stats.norm.pdf(mu_envelop, mu_envelop, sigma_envelop) # envelop 
+    p_beam_forming = p_prime_repeat * p_envelop  
+    
+    return p_beam_forming 
+
     
 
 def Compute_w_DM(DM, channel_number, frequency_central=1405):
@@ -198,56 +216,59 @@ def Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max, S2N_m
         F0 = flux_noise * S2N_min * time_resolution 
     else: 
         F0 = flux_noise * S2N_min * w_eff 
-    
-    # for debug
-    with open('../../outputs_txt/Integration_track_'+version+'.txt', 'a') as f: 
-        print >>f, '#### Discrete DM sampling ######'
-        print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
-        print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=',F0
 
     return F0  
 
 
-def Rate_integrand(w_int, DM, theta, time_resolution, channel_number, DM_min, DM_max):
+def Rate_integrand(w_int, DM, time_resolution, channel_number, DM_min, DM_max):
     '''
     Integrate this function to get the detection rate.
     '''    
     F_0 = Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max) # fluence threshold for a given width     
     event_rate_above_F_0 = 1 - Fluence_cdf(F_0) # N[F>F0(w, DM)]  
     
-    return event_rate_above_F_0 * Width_intrinsic_pdf(w_int) * DM_pdf(DM) * Beam_shape(theta) 
+    # for debug or record
+    with open('../../outputs_txt/Integration_track_'+version+'.txt', 'a') as f: 
+        print >>f, '#### Discrete DM sampling ######'
+        print >>f, time.strftime("%Y-%m-%d %H:%M:%S") # print date and time 
+        print >>f, 'w_int=',w_int, 'DM=',DM, 'F0=', F0 
+        #print >>f, 'w_int=',w_int, 'DM=',DM, 'theta=',theta, 'F0=', F0 
+    
+    return event_rate_above_F_0 * Width_intrinsic_pdf(w_int) * DM_pdf(DM) 
 
 
 
-
-def Compute_detection_rate(time_resolution, channel_number, DM_min, DM_max,f=Rate_integrand): 
+def Compute_detection_rate(time_resolution, channel_number, DM_min, DM_max, beam_forming_integral, f=Rate_integrand): 
     '''
     Total number of detectable events per day for the instrument. 
-    Return the triple integral of func(z, y, x) from x = a..b, y = gfun(x)..hfun(x), and z = qfun(x,y)..rfun(x,y).
-    Note that the order of arguments are counter-intuitive: (z, y, x) 
+    Return the double (definite) integral of func(y, x) from x = a..b and y = gfun(x)..hfun(x).
+    Note that the order of arguments are counter-intuitive: (y, x)
     '''
-    #return integrate.tplquad(f, -90.0, 90.0, lambda y: DM_min, lambda y: DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
-    return integrate.tplquad(f, -5.0, 5.0, lambda x: DM_min, lambda x: DM_max, lambda x,y: 0, lambda x,y: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
-
-
+    rate_for_perfect_response = integrate.dblquad(f, DM_min, DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
+    return beam_forming_integral * rate_for_perfect_response[0],  beam_forming_integral * rate_for_perfect_response[1]
+    
 
 # -- main -- 
-version = 'v4' # code version 
+version = 'v5' # code version 
 # FRB population: DM mu=544, sigma=406, w_int mu=1.85, sigma=2.58 
 my_bandwidth = 250.0 # MHz 
 my_DM_min = 0.0 
 my_DM_max = 5000.0
+my_sky_angle = 5.0 
+my_beam_forming_integral = integrate.quad(Beam_forming_shape, -1*my_sky_angle,  my_sky_angle, args=my_sky_angle)[0] / 180 
+
 # test integration speed
 #Compute_detection_rate(1e-3, 2048, my_DM_min, my_DM_max, Rate_integrand) 
 
 
-time_resolution_edges = np.logspace(-3.0, 0.0, num=21) # 1 microsec to 1 millisec
+time_resolution_edges = np.logspace(-3.0, 0.0, num=20) # 1 microsec to 1 millisec
 my_channel_number_edges = np.logspace(11, 6, num=22, base=2.0) # N <= 2048
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
 
 time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
 my_channel_width = 0.5*(my_channel_width_edges[0:-1] + my_channel_width_edges[1:])
 my_channel_number = 0.5*(my_channel_number_edges[0:-1] + my_channel_number_edges[1:])
+
 
 # Use some typical width, fluence, and DM values to test the noise and S/N functions.
 my_w_int = 0.5 # width in ms
@@ -265,7 +286,7 @@ for t in time_resolution:  # in ms
         noise_element = Compute_flux_noise(my_w_int, my_DM, t, n_ch, my_DM_min, my_DM_max) 
         S2N_element = Compute_S2N(my_F, my_DM, my_w_int, t, n_ch, my_DM_min, my_DM_max)
         F0_element = Compute_F0(my_w_int, my_DM, t, n_ch, my_DM_min, my_DM_max)
-        rate_element = Compute_detection_rate(t, n_ch, my_DM_min, my_DM_max, Rate_integrand)
+        rate_element = Compute_detection_rate(t, n_ch, my_DM_min, my_DM_max, my_beam_forming_integral, Rate_integrand)
         
         S2N = np.append(S2N, S2N_element)
         F0 = np.append(F0, F0_element)
@@ -295,7 +316,7 @@ if len(my_channel_width)==1 and len(time_resolution)>1:
     ax1.set_yscale('log') 
     ax1.scatter(time_resolution, rate, s=5) 
     ax1.set_xlabel(r'Time resolution [ms]', fontsize = 12) 
-    ax1.set_ylabel(r'Detection rate [%]', fontsize = 12) 
+    ax1.set_ylabel(r'Detection rate', fontsize = 12) 
     ax1.set_title('Rate vs Time Resolution', fontsize = 12) 
     #fig1.savefig('Rate_vs_time_resol.pdf') 
     #plt.close() 
@@ -319,7 +340,7 @@ if len(my_channel_width)==1 and len(time_resolution)>1:
     ax1.set_xlabel('Time Resolution [ms]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('Fluence Threshold vs Time Resolution \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    #fig1.savefig('F0_vs_time_resol_beam_shape_single.pdf') 
+    #fig1.savefig('F0_vs_time_resol_beam_forming.pdf') 
     #plt.close() 
 
 # only changes channel width
@@ -331,9 +352,9 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_yscale('log') 
     ax1.scatter(my_channel_width, rate, s=5) 
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
-    ax1.set_ylabel(r'Detection rate [%]', fontsize = 12) 
+    ax1.set_ylabel(r'Detection rate', fontsize = 12) 
     ax1.set_title('Rate vs Channel width', fontsize = 12) 
-    fig1.savefig('Rate_vs_channel_width_beam_shape_single.pdf') 
+    fig1.savefig('Rate_vs_channel_width_beam_forming.pdf') 
     #plt.close() 
     
     fig1, ax1 = plt.subplots() 
@@ -344,7 +365,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel_width [MHz]', fontsize = 12)
     ax1.set_ylabel('Fluence Threshold [Jy ms]', fontsize = 12)
     ax1.set_title('F_0 vs channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('F0_vs_channel_width_beam_shape_single.pdf') 
+    fig1.savefig('F0_vs_channel_width_beam_forming.pdf') 
     #plt.close() 
         
     fig1, ax1 = plt.subplots() 
@@ -355,7 +376,7 @@ elif len(my_channel_width)>1 and len(time_resolution)==1:
     ax1.set_xlabel('Channel width [MHz]', fontsize = 12)
     ax1.set_ylabel('S/N', fontsize = 12)
     ax1.set_title('S/N vs Channel width \n width = %.3f ms, DM=%.3f'%(my_w_int, my_DM), fontsize = 12) 
-    fig1.savefig('S2N_vs_channel_width_beam_shape_single.pdf') 
+    fig1.savefig('S2N_vs_channel_width_beam_forming.pdf') 
 
 # grid plot 
 elif len(my_channel_width)>1 and len(time_resolution)>1:
@@ -373,11 +394,11 @@ elif len(my_channel_width)>1 and len(time_resolution)>1:
     #img = ax1.imshow(zg, extent=(np.amin(my_channel_width), np.amax(my_channel_width), np.amin(time_resolution), np.amax(time_resolution)), origin='lower', aspect='auto') #norm=LogNorm()
     img = ax1.pcolormesh(my_channel_width_edges, time_resolution_edges, zg) #len(x) = row(z)+1 
     char = fig1.colorbar(img, ax=ax1) 
-    char.set_label('Rate [%]', fontsize = 12) # colorbar label.
+    char.set_label('Rate', fontsize = 12) # colorbar label.
     ax1.set_xlabel(r'Channel width [MHz]', fontsize = 12) 
     ax1.set_ylabel(r'Time resolution [ms]', fontsize = 12) 
     ax1.set_title('Rate vs. (channel width and time resolution)', fontsize = 14)   
-    fig1.savefig('Rate_grid_beam_shape_single.pdf')  
+    fig1.savefig('Rate_grid_beam_forming.pdf')  
     
 else: 
     print 'rate=', rate
@@ -415,4 +436,16 @@ ax1.set_ylabel('width [ms]')
 ax1.set_title(r'Dispersion smearing due to DM, $\Delta$DM and $t_{samp}$')
 #fig1.savefig('w_delta_DM_test_with_t_samp.pdf')
 
+# test beam forming result
+theta=np.linspace(-1*my_sky_angle, my_sky_angle, 3001) 
+p = [Beam_forming_shape(item, my_sky_angle) for item in theta] 
+
+fig3, ax3 = plt.subplots() 
+fig3.set_size_inches(8., 6.) 
+ax3.tick_params(labelsize=12) 
+ax3.plot(theta, p)
+ax3.set_xlabel('Angle from the Zenith (degree)')
+ax3.set_ylabel('Power Response') 
+ax3.set_title('Beam forming approximation') 
+fig3.savefig('Beam_forming_approximation.pdf')
 
