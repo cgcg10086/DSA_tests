@@ -246,6 +246,23 @@ def Compute_detection_rate(time_resolution, channel_number, DM_min, DM_max, beam
     '''
     rate_for_perfect_response = integrate.dblquad(f, DM_min, DM_max, lambda x: 0, lambda x: np.inf, args=[time_resolution, channel_number, DM_min, DM_max], epsabs=1e-4, epsrel=1e-4) 
     return beam_forming_integral * rate_for_perfect_response[0],  beam_forming_integral * rate_for_perfect_response[1]
+
+
+'''
+def Compute_detection_rate_riemann_sum(time_resolution, channel_number, DM_min, DM_max, beam_forming_integral):
+    DM_arr = np.linspace(DM_min, DM_max, num=50) 
+    w_arr = np.logspace(w_order_min, w_order_max, num=50)
+    DM_mid_arr = 0.5 * (DM_arr[0:-1] + DM_arr[1:])
+    w_mid_arr = 0.5 * (w_arr[0:-1] + w_arr[1:])
+    rate = 0.0 
+    for i in range(len(w_arr)):
+        delta_w = w_arr[i+1] - w_arr[i]
+        for j in range(len(DM_arr):
+            delta_DM = DM_arr[j+1] - DM_arr[j] 
+            rate += delta_w * delta_DM * Rate_integrand(w_mid[i], DM_mid[j], time_resolution, channel_number, DM_min, DM_max)
+    
+    return rate * beam_forming_integral 
+'''    
     
 
 # -- main -- 
@@ -449,3 +466,6 @@ ax3.set_ylabel('Power Response')
 ax3.set_title('Beam forming approximation') 
 fig3.savefig('Beam_forming_approximation.pdf')
 
+
+    
+    
