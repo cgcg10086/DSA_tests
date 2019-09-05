@@ -43,35 +43,29 @@ def Width_intrinsic_pdf(w_int, mu=1.85, sigma=3.03):
     '''
     return stats.norm.pdf(w_int, mu, sigma)
 
-def Power_law_cdf(a, x_low, x_0): 
-    '''
-    Compute the probability that x > x_0 for a power law pdf: y = x^a 
-    # x_low: lower limit of the pdf 
-    '''
-    return 1./(a+1) * (x_0 ** (a + 1) - x_low ** (a + 1))
 
-
-def Fluence_cdf(F_0, F_b=15, F_low=0.5, F_up = 1e5, alpha = -1.18, beta = -2.2):
+def Events_above_F0(F_0, F_b=15, F_low=0.5, F_up = 1e5, alpha = -1.18, beta = -2.2):
     '''
-    Compute the probability to have a FRB whose fluence > F_0 
-    fluence pdf: broken power law from James et al. 2019 
-    'The slope of the source-count distribution for fast radio bursts' 
+    Compute R(>F0) 
+    model: James et al. 2019 'The slope of the source-count distribution for fast radio bursts' 
+    
+    Check F_low and find a good reference. 
+    
     #F_b: fluence turning point is between 5 tp 40 Jy ms  
-    #F_low: fluence lower limit 
-    #F_up: fluence upper limit     
+    #F_low: fluence lower limit assuming w= 1 ms (rate = 1000 per day per sky)
+    #F_up: fluence upper limit, some arbitery large number      
     #alpha: Parks pdf power index  
     #beta: Askap pdf power index 
     '''
     if F_0 < F_low: 
-        fluence_cdf = 0 
+        R = 0 
     elif F_0 < F_b:
-        fluence_cdf = Power_law_cdf(alpha, F_low, F_0) # 1./(alpha+1) * (x ** (alpha + 1) - F_low ** (alpha + 1))
+        R = 1000 * (F_0 / F_low) ** alpha 
     else:
-        fluence_cdf = Power_law_cdf(alpha, F_low, F_b) + Power_law_cdf(beta, F_b, F_0)  
+        R_b = 1000 * (F_b / F_low) ** alpha
+        R = R_b * (F_0 / F_b) ** beta 
     
-    norm_scale = 1./(Power_law_cdf(alpha, F_low, F_b) + Power_law_cdf(beta, F_b, F_up)) # normalize the pdf with this scaling factor 
-    
-    return norm_scale * fluence_cdf 
+    return R  
 
 
 def Beam_forming_shape(theta, sky_angle, beam_center_space=0.04, sigma_prime=0.012, mu_envelop=0.0, sigma_envelop=1.65):
@@ -168,7 +162,7 @@ def Compute_flux_noise(w_int, DM, time_resolution, channel_number, DM_min, DM_ma
     # w_int: in ms 
     # time_resolution: in ms 
     # T_sys: in Kelvin
-    # bandwidth: in MHz
+    # bandwidth: in MHz 
     '''
     w_eff = Compute_w_eff(w_int, DM, channel_number, time_resolution, DM_min, DM_max) 
     Kb = 1381 # in m^2*Jy/Kelvin 
@@ -225,7 +219,7 @@ def Rate_integrand(w_int, DM, time_resolution, channel_number, DM_min, DM_max):
     Integrate this function to get the detection rate.
     '''    
     F_0 = Compute_F0(w_int, DM, time_resolution, channel_number, DM_min, DM_max) # fluence threshold for a given width     
-    event_rate_above_F_0 = 1 - Fluence_cdf(F_0) # N[F>F0(w, DM)]  
+    event_rate_above_F_0 = Events_above_F0(F_0) # N[F>F0(w, DM)]  
     
     # for debug or record
     with open('../../outputs_txt/Integration_track_'+version+'.txt', 'a') as f: 
@@ -278,8 +272,8 @@ my_beam_forming_integral = integrate.quad(Beam_forming_shape, -1*my_sky_angle,  
 #Compute_detection_rate(1e-3, 2048, my_DM_min, my_DM_max, Rate_integrand) 
 
 
-time_resolution_edges = np.logspace(-3.0, 0.0, num=20) # 1 microsec to 1 millisec
-my_channel_number_edges = np.logspace(11, 6, num=22, base=2.0) # N <= 2048
+time_resolution_edges = np.logspace(-3.0, 0.0, num=10) # 1 microsec to 1 millisec
+my_channel_number_edges = np.logspace(11, 6, num=12, base=2.0) # N <= 2048
 my_channel_width_edges = my_bandwidth / my_channel_number_edges
 
 time_resolution = 0.5*(time_resolution_edges[0:-1] + time_resolution_edges[1:])
@@ -451,7 +445,7 @@ ax1.legend()
 ax1.set_xlabel('DM')
 ax1.set_ylabel('width [ms]') 
 ax1.set_title(r'Dispersion smearing due to DM, $\Delta$DM and $t_{samp}$')
-#fig1.savefig('w_delta_DM_test_with_t_samp.pdf')
+#fig1.savefig('w_delta_DM_test_with_t_samp.pdf') 
 
 # test beam forming result
 theta=np.linspace(-1*my_sky_angle, my_sky_angle, 3001) 
@@ -467,5 +461,16 @@ ax3.set_title('Beam forming approximation')
 fig3.savefig('Beam_forming_approximation.pdf')
 
 
-    
-    
+# test fluence cdf distribution 
+F=np.linspace(0.5,100,num=500)
+F_cdf = [Fluence_cdf(i) for i in F] 
+
+fig3, ax3 = plt.subplots() 
+fig3.set_size_inches(8., 6.) 
+ax3.tick_params(labelsize=12) 
+ax3.plot(F, F_cdf)
+ax3.grid()
+ax3.set_xlabel('Fluence [Jy ms]')
+ax3.set_ylabel('cdf(F)')
+ax3.set_title('Fluence Cumulative Distribution') 
+fig3.savefig('F_cdf.pdf')
