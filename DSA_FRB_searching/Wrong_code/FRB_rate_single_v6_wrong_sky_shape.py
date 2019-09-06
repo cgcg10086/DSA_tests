@@ -69,7 +69,7 @@ def Events_above_F0(F_0, F_b=15, F_low=0.5, F_up = 1e5, alpha = -1.18, beta = -2
     return R  
 
 
-def Beam_forming_shape_2D(theta_x, theta_y, main_beam_edges=3.9, sigma_main=0.012, mu_envelop=[0.0, 0.0], sigma_envelop=[1.65, 1.65]):
+def Beam_forming_shape_2D(theta_x, theta_y, main_beam_edges=3.9, sigma_main=[0.012, 0.012], mu_envelop=[0.0, 0.0], sigma_envelop=[1.65, 1.65]):
     '''
     In 'Cartesian' coordinate (theta_x, theta_y) 
     Beam forming in 2D and using 2 arms. 
@@ -83,20 +83,20 @@ def Beam_forming_shape_2D(theta_x, theta_y, main_beam_edges=3.9, sigma_main=0.01
     #theta_y = theta * np.sin(phi) 
     mu_main_repeat = np.linspace(-1*main_beam_edges, main_beam_edges, num = 256) 
     
-    mu_main_x = mu_main_repeat[np.argmin(abs(theta_x-mu_main_repeat))] 
-    p_main_repeat_x = stats.norm.pdf(theta_x, mu_main_x, sigma_main) / stats.norm.pdf(mu_main_x, mu_main_x, sigma_main) 
-
-    mu_main_y = mu_main_repeat[np.argmin(abs(theta_y-mu_main_repeat))] 
-    p_main_repeat_y = stats.norm.pdf(theta_y, mu_main_y, sigma_main) / stats.norm.pdf(mu_main_y, mu_main_y, sigma_main) 
+    if abs(theta_x) >= abs(theta_y):
+        mu_main_x = mu_main_repeat[np.argmin(abs(theta_x-mu_main_repeat))] 
+        p_main_repeat = stats.multivariate_normal.pdf([theta_x,theta_y], [mu_main_x, 0], sigma_main) / stats.multivariate_normal.pdf([mu_main_x, 0], [mu_main_x, 0], sigma_main) 
+        #print 'print "mu_main_x=%.2f'%mu_main_x
+    else: 
+        mu_main_y = mu_main_repeat[np.argmin(abs(theta_y-mu_main_repeat))] 
+        p_main_repeat = stats.multivariate_normal.pdf([theta_x,theta_y], [0, mu_main_y], sigma_main) / stats.multivariate_normal.pdf([0, mu_main_y], [0, mu_main_y], sigma_main) 
+        #print 'print "mu_main_y=%.2f'%mu_main_y
     # Prime is 2D gaussian: np.exp(-(theta_x - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2)) * np.exp(-(theta_y - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2))
     p_envelop = stats.multivariate_normal.pdf([theta_x,theta_y], mu_envelop, sigma_envelop) / stats.multivariate_normal.pdf(mu_envelop, mu_envelop, sigma_envelop) 
-    p_beam_forming = p_main_repeat_x * p_main_repeat_y * p_envelop  
+    p_beam_forming = p_main_repeat * p_envelop  
     #p_beam_forming_integrand = p_beam_forming * theta # integrand in polar coordinates
     
-    #print 'print "mu_main_y=%.2f'%mu_main_y
-    #print 'print "mu_main_x=%.2f'%mu_main_x
-    #print 'p_main_repeat_x=%.2f'%p_main_repeat 
-    #print 'p_main_repeat_y=%.2f'%p_main_repeat 
+    #print 'p_main_repeat=%.2f'%p_main_repeat 
     #print 'p_envelop=%.2f'%p_envelop
     
     return p_beam_forming 
@@ -113,23 +113,20 @@ def Beam_forming_integrand_2D(theta, phi, main_beam_edges=3.9, sigma_main=[0.012
     theta_y = theta * np.sin(phi) 
     mu_main_repeat = np.linspace(-1*main_beam_edges, main_beam_edges, num = 256) 
     
-    mu_main_x = mu_main_repeat[np.argmin(abs(theta_x-mu_main_repeat))] 
-    p_main_repeat_x = stats.norm.pdf(theta_x, mu_main_x, sigma_main) / stats.norm.pdf(mu_main_x, mu_main_x, sigma_main) 
-    
-
-    mu_main_y = mu_main_repeat[np.argmin(abs(theta_y-mu_main_repeat))] 
-    p_main_repeat_y = stats.norm.pdf(theta_y, mu_main_y, sigma_main) / stats.norm.pdf(mu_main_y, mu_main_y, sigma_main) 
-    
-    
-    #Prime is 2D gaussian: np.exp(-(theta_x - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2)) * np.exp(-(theta_y - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2))
+    if abs(theta_x) >= abs(theta_y):
+        mu_main_x = mu_main_repeat[np.argmin(abs(theta_x-mu_main_repeat))] 
+        p_main_repeat = stats.multivariate_normal.pdf([theta_x,theta_y], [mu_main_x, 0], sigma_main) / stats.multivariate_normal.pdf([mu_main_x, 0], [mu_main_x, 0], sigma_main) 
+        #print 'print "mu_main_x=%.2f'%mu_main_x
+    else: 
+        mu_main_y = mu_main_repeat[np.argmin(abs(theta_y-mu_main_repeat))] 
+        p_main_repeat = stats.multivariate_normal.pdf([theta_x,theta_y], [0, mu_main_y], sigma_main) / stats.multivariate_normal.pdf([0, mu_main_y], [0, mu_main_y], sigma_main) 
+        #print 'print "mu_main_y=%.2f'%mu_main_y
+    # Prime is 2D gaussian: np.exp(-(theta_x - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2)) * np.exp(-(theta_y - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2))
     p_envelop = stats.multivariate_normal.pdf([theta_x,theta_y], mu_envelop, sigma_envelop) / stats.multivariate_normal.pdf(mu_envelop, mu_envelop, sigma_envelop) 
-    p_beam_forming = p_main_repeat_x * p_main_repeat_y * p_envelop  
+    p_beam_forming = p_main_repeat * p_envelop  
     p_beam_forming_integrand = p_beam_forming * theta # integrand in polar coordinates
     
-    #print 'print "mu_main_y=%.2f'%mu_main_y
-    #print 'print "mu_main_x=%.2f'%mu_main_x
-    #print 'p_main_repeat_x=%.2f'%p_main_repeat 
-    #print 'p_main_repeat_y=%.2f'%p_main_repeat 
+    #print 'p_main_repeat=%.2f'%p_main_repeat 
     #print 'p_envelop=%.2f'%p_envelop
     
     return p_beam_forming_integrand # normalized by the 2D sky surface area (4*np.pi)? 
@@ -146,6 +143,25 @@ def Beam_forming_2D_int(sky_angle):
     
     return beam_forming_sky_integral / norm 
     
+'''
+def Imaging_shape_2D(theta_x, theta_y, mu_envelop=[0.0, 0.0], sigma_envelop=[1.65, 1.65]): 
+    
+   # Envelop is the prime beam, a 2D gaussian: 
+    #(np.exp(-(theta_x - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2))) * (np.exp(-(theta_y - mu_envelop[0]) ** 2 /(2*sigma_envelop[0]**2))) 
+    return stats.multivariate_normal.pdf([theta_x,theta_y], mu_envelop, sigma_envelop) / stats.multivariate_normal.pdf(mu_envelop, mu_envelop, sigma_envelop) 
+    
+
+def Imaging_int(aperture_angle, f=Imaging_shape_2D):
+    
+    #Input aperture_angle in degrees. 
+
+    #sky_angle = np.deg2rad(sky_angle) 
+    # Will need efficiency as a function of theta 
+    imaging_sky_integral = integrate.dblquad(f, -1*aperture_angle,  aperture_angle, lambda x: -1*aperture_angle, lambda x: aperture_angle)[0] 
+    norm = 4 * aperture_angle ** 2 # normalized by the sky area of interest (quadrilateral)
+    
+    return imaging_sky_integral / norm 
+'''
     
 
 def Compute_w_DM(DM, channel_number, frequency_central=1405):
@@ -504,7 +520,7 @@ ax3.set_title('Fluence Cumulative Distribution')
 fig3.savefig('F_cdf.pdf')
 
 # Test 2D beam forming and imaging response maps  
-plot_angle = 5
+plot_angle = 10
 plot_num = 200
 # 'Cartesian' coordinate: (theta_x, theta_y)
 my_theta_x = np.linspace(-1 * plot_angle, plot_angle,num=plot_num, endpoint=False)
@@ -520,7 +536,18 @@ for i in my_theta_x:
         my_prime_bf = np.append(my_prime_bf, Beam_forming_shape_2D(i, j))  
 #zg_img = np.reshape(my_prime, (len(my_theta_x), len(my_theta_x))) 
 zg_bf = np.reshape(my_prime_bf, (len(my_theta_x), len(my_theta_x))) 
-
+'''    
+fig1, ax1 = plt.subplots() 
+fig1.set_size_inches(8., 6.) 
+ax1.tick_params(labelsize=12) 
+img = ax1.pcolormesh(my_theta_x_edges, my_theta_y_edges, zg_img) #len(x) = row(z)+1 
+char = fig1.colorbar(img, ax=ax1) 
+char.set_label('Power response', fontsize = 12) # colorbar label.
+ax1.set_xlabel(r'$\theta_x$', fontsize = 12) 
+ax1.set_ylabel(r'$\theta_y$', fontsize = 12) 
+ax1.set_title('Prime beam response', fontsize = 14)   
+fig1.savefig('Prime_2D_'+str(plot_angle)+'.pdf')  
+'''
 fig2, ax2 = plt.subplots() 
 fig2.set_size_inches(8., 6.) 
 ax2.tick_params(labelsize=12) 

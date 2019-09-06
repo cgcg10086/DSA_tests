@@ -251,7 +251,7 @@ version = 'v7' # code version
 my_bandwidth = 250.0 # MHz 
 my_DM_min = 0.0 
 my_DM_max = 5000.0
-my_img_size = 5.0 # free parameter in degree 
+my_img_size = 5.0 # aperture size \theta_x, \theta_y (in degree)  
 my_beam_forming_integral = Imaging_int(my_img_size)  
 
 
@@ -302,7 +302,7 @@ for t in time_resolution:  # in ms
             'S/N=%.1f,'%S2N_element, \
             'rate=', rate_element # (integral result, error)
             
-    
+# The rest are for ploting and tests.    
 # only changes time resolution
 if len(my_channel_width)==1 and len(time_resolution)>1:
     print "Fixed channel width=", my_channel_width[0] 
